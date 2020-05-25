@@ -17,6 +17,10 @@ import vqa.lib.criterions as criterions
 import vqa.datasets as datasets
 import vqa.models as models
 
+from torch.utils.data import DataLoader
+
+from custom import CustomDataset
+
 parser = argparse.ArgumentParser(
     description='Train/Evaluate models',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -120,7 +124,10 @@ def main():
                                     options['vgenome'])
     train_loader = trainset.data_loader(batch_size=options['optim']['batch_size'],
                                         num_workers=args.workers,
-                                        shuffle=True)                                      
+                                        shuffle=True)
+
+    imgs_trainset = CustomDataset(root_dir='FLIR/', transform=None)
+    imgs_train_loader = DataLoader(imgs_trainset, batch_size=4)
 
     # if options['vqa']['trainsplit'] == 'train':
         # valset = datasets.factory_VQA('val', options['vqa'], options['coco'])
@@ -213,7 +220,7 @@ def main():
         #adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
-        engine.train(train_loader, model, criterion, optimizer, 
+        engine.train(imgs_train_loader, model, criterion, optimizer, 
                      exp_logger, epoch, args.print_freq)
         
         # if options['vqa']['trainsplit'] == 'train':

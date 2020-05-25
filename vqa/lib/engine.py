@@ -3,31 +3,47 @@ import torch
 from torch.autograd import Variable
 import vqa.lib.utils as utils
 from torchsummary import summary
+import torchvision
+from torch import nn
 
 def train(loader, model, criterion, optimizer, logger, epoch, print_freq=10):
     # switch to train mode
     model.train()
     meters = logger.reset_meters('train')
 
+    resnet = torchvision.models.resnet152(pretrained=True)
+    base_feat = nn.Sequential(resnet.conv1, resnet.bn1,resnet.relu,resnet.maxpool,resnet.layer1,resnet.layer2,
+    resnet.layer3,resnet.layer4).cuda()
+    base_feat = nn.DataParallel(base_feat)
+
     end = time.time()
     for i, sample in enumerate(loader):
-        batch_size = sample['visual'].size(0)
-
+        # batch_size = sample['visual'].size(0)
+        batch_size = sample[0].size(0)
+        
         # measure data loading time
         meters['data_time'].update(time.time() - end, n=batch_size)
 
-        input_visual   = Variable(sample['visual'])
-        input_question = Variable(sample['question'])
+        input_rgb = Variable(sample[0]).cuda()
+        input_thermal = Variable(sample[1]).cuda()
+
+        rgb_feat = base_feat(input_rgb)
+        thermal_feat = base_feat(input_thermal)
+
+        # input_visual   = Variable(sample['visual'])
+        # input_question = Variable(sample['question'])
         
-        # print('Visual shape is',input_visual.shape)
-        # print('Question shape is',input_question.shape)
-        target_answer  = Variable(sample['answer'].cuda(async=True))
+        # target_answer  = Variable(sample['answer'].cuda(async=True))
         # sample_question_float = sample["question"].float()
         
         # summary(model,[sample['visual'],sample_question_float])
         
         # compute output
-        output = model(input_visual, input_question)
+        # output = model(input_visual, input_question)
+
+        output = model(rgb_feat, thermal_feat)
+        
+
         torch.cuda.synchronize()
         loss = criterion(output, target_answer)
         meters['loss'].update(loss.data[0], n=batch_size)

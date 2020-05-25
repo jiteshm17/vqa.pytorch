@@ -36,12 +36,7 @@ class AbstractAtt(nn.Module):
     def _fusion_classif(self, x_v, x_q):
         raise NotImplementedError
 
-    def _attention(self, input_v, x_q_vec):
-
-        # print('inside attention function')
-        # print('visual shape',input_v.shape)
-        # print('question shape',x_q_vec.shape)
-
+    def _attention(self, input_v, input_q):
         batch_size = input_v.size(0)
         width = input_v.size(2)
         height = input_v.size(3)
@@ -49,38 +44,50 @@ class AbstractAtt(nn.Module):
         # Process visual before fusion
         #x_v = input_v.view(batch_size*width*height, dim_features)
         x_v = input_v
+        x_q = input_q
+
         x_v = F.dropout(x_v,
                         p=self.opt['attention']['dropout_v'],
                         training=self.training)
+        x_q = F.dropout(x_q,
+                        p=self.opt['attention']['dropout_v'],
+                        training=self.training)
+        
         x_v = self.conv_v_att(x_v)
+        x_q = self.conv_v_att(x_q)
+        
         if 'activation_v' in self.opt['attention']:
             x_v = getattr(F, self.opt['attention']['activation_v'])(x_v)
+            x_q = getattr(F, self.opt['attention']['activation_v'])(x_q)
+        
         x_v = x_v.view(batch_size,
                        self.opt['attention']['dim_v'],
                        width * height)
+
+        x_q = x_q.view(batch_size,
+                       self.opt['attention']['dim_v'],
+                       width * height)
+        
         x_v = x_v.transpose(1,2)
+        x_q = x_q.transpose(1,2)
 
         # Process question before fusion
-        x_q = F.dropout(x_q_vec, p=self.opt['attention']['dropout_q'],
-                           training=self.training)
-        x_q = self.linear_q_att(x_q)
-        if 'activation_q' in self.opt['attention']:
-            x_q = getattr(F, self.opt['attention']['activation_q'])(x_q)
-        x_q = x_q.view(batch_size,
-                       1,
-                       self.opt['attention']['dim_q'])
-        x_q = x_q.expand(batch_size,
-                         width * height,
-                         self.opt['attention']['dim_q'])
+        
+        # x_q = F.dropout(x_q_vec, p=self.opt['attention']['dropout_q'],
+        #                    training=self.training)
+        # x_q = self.linear_q_att(x_q)
+        # if 'activation_q' in self.opt['attention']:
+        #     x_q = getattr(F, self.opt['attention']['activation_q'])(x_q)
+        # x_q = x_q.view(batch_size,
+        #                1,
+        #                self.opt['attention']['dim_q'])
+        # x_q = x_q.expand(batch_size,
+        #                  width * height,
+        #                  self.opt['attention']['dim_q'])
 
         # First multimodal fusion
 
-        # print('visual shape is',x_v.shape)
-        # print('query shape is',x_q.shape)
-
         x_att = self._fusion_att(x_v, x_q)
-
-        # print('fusion shape is',x_att.shape)
 
         if 'activation_mm' in self.opt['attention']:
             x_att = getattr(F, self.opt['attention']['activation_mm'])(x_att)
@@ -107,11 +114,17 @@ class AbstractAtt(nn.Module):
             x_att = F.softmax(x_att)
             list_att.append(x_att)
 
+        # list_att_copy = copy(list_att)
+
         self.list_att = [x_att.data for x_att in list_att]
+
 
         # Apply attention vectors to input_v
         x_v = input_v.view(batch_size, self.opt['dim_v'], width * height)
         x_v = x_v.transpose(1,2)
+
+        x_q = input_q.view(batch_size, self.opt['dim_v'], width * height)
+        x_q = x_q.transpose(1,2)
 
         list_v_att = []
         for i, x_att in enumerate(list_att):
@@ -126,9 +139,23 @@ class AbstractAtt(nn.Module):
             x_v_att = x_v_att.view(batch_size, self.opt['dim_v'])
             list_v_att.append(x_v_att)
 
-        return list_v_att
 
-    def _fusion_glimpses(self, list_v_att, x_q_vec):
+        list_q_att = []
+        for i, x_att in enumerate(list_att):
+            x_att = x_att.view(batch_size,
+                               width * height,
+                               1)
+            x_att = x_att.expand(batch_size,
+                                 width * height,
+                                 self.opt['dim_v'])
+            x_q_att = torch.mul(x_att, x_q)
+            x_q_att = x_q_att.sum(1)
+            x_q_att = x_q_att.view(batch_size, self.opt['dim_v'])
+            list_q_att.append(x_q_att)
+
+        return list_v_att,list_q_att
+
+    def _fusion_glimpses(self, list_v_att, list_q_att):
         # Process visual for each glimpses
         list_v = []
         for glimpse_id, x_v_att in enumerate(list_v_att):
@@ -141,13 +168,26 @@ class AbstractAtt(nn.Module):
             list_v.append(x_v)
         x_v = torch.cat(list_v, 1)
 
+        list_q = []
+        for glimpse_id, x_q_att in enumerate(list_q_att):
+            x_q = F.dropout(x_q_att,
+                            p=self.opt['fusion']['dropout_v'],
+                            training=self.training)
+            x_q = self.list_linear_v_fusion[glimpse_id](x_q)
+            if 'activation_v' in self.opt['fusion']:
+                x_q = getattr(F, self.opt['fusion']['activation_v'])(x_q)
+            list_q.append(x_q)
+        
+        x_q = torch.cat(list_q, 1)
+
         # Process question
-        x_q = F.dropout(x_q_vec,
-                        p=self.opt['fusion']['dropout_q'],
-                        training=self.training)
-        x_q = self.linear_q_fusion(x_q)
-        if 'activation_q' in self.opt['fusion']:
-            x_q = getattr(F, self.opt['fusion']['activation_q'])(x_q)
+        
+        # x_q = F.dropout(x_q_vec,
+        #                 p=self.opt['fusion']['dropout_q'],
+        #                 training=self.training)
+        # x_q = self.linear_q_fusion(x_q)
+        # if 'activation_q' in self.opt['fusion']:
+        #     x_q = getattr(F, self.opt['fusion']['activation_q'])(x_q)
 
         # Second multimodal fusion
         x = self._fusion_classif(x_v, x_q)
@@ -164,24 +204,16 @@ class AbstractAtt(nn.Module):
         return x
 
     def forward(self, input_v, input_q):
-        # print('In forward Att')
-        # print(input_v.shape,input_q.shape)
 
-        # print()
-        # print(input_v.dim())
-        # print(input_q.dim())
-        if input_v.dim() != 4 and input_q.dim() != 2:
-            raise ValueError
+        # if input_v.dim() != 4 and input_q.dim() != 2:
+        #     raise ValueError
 
-        x_q_vec = self.seq2vec(input_q)
-        # print(x_q_vec.shape)
-        list_v_att = self._attention(input_v, x_q_vec)
-        # print(list_v_att.shape)
-        x = self._fusion_glimpses(list_v_att, x_q_vec)
-        # print(x.shape)
+        # x_q_vec = self.seq2vec(input_q)
+        # x_q_vec = input_q
+        
+        list_v_att,list_q_att = self._attention(input_v, input_q)
+        x = self._fusion_glimpses(list_v_att, list_q_att)
         x = self._classif(x)
-        # print(x.shape)
-        # print('returning')
         return x
 
 

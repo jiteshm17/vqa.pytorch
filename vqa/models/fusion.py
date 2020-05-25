@@ -76,38 +76,48 @@ class MutanFusion(AbstractFusion):
             for i in range(self.opt['R'])])
 
     def forward(self, input_v, input_q):
-        if input_v.dim() != input_q.dim() and input_v.dim() != 2:
-            raise ValueError
+        # if input_v.dim() != input_q.dim() and input_v.dim() != 2:
+        #     raise ValueError
         batch_size = input_v.size(0)
 
         if self.visual_embedding:
             x_v = F.dropout(input_v, p=self.opt['dropout_v'], training=self.training)
+            x_q = F.dropout(input_q, p=self.opt['dropout_v'], training=self.training)
+            
             x_v = self.linear_v(x_v)
+            x_q = self.linear_v(x_q)
+            
             if 'activation_v' in self.opt:
                     x_v = getattr(F, self.opt['activation_v'])(x_v)
+                    x_q = getattr(F, self.opt['activation_v'])(x_q)
         else:
             x_v = input_v
-
-        if self.question_embedding:
-            x_q = F.dropout(input_q, p=self.opt['dropout_q'], training=self.training)
-            x_q = self.linear_q(x_q)
-            if 'activation_q' in self.opt:
-                    x_q = getattr(F, self.opt['activation_q'])(x_q)
-        else:
             x_q = input_q
+
+        # if self.question_embedding:
+        #     x_q = F.dropout(input_q, p=self.opt['dropout_q'], training=self.training)
+        #     x_q = self.linear_q(x_q)
+        #     if 'activation_q' in self.opt:
+        #             x_q = getattr(F, self.opt['activation_q'])(x_q)
+        # else:
+        #     x_q = input_q
 
         x_mm = []
         for i in range(self.opt['R']):
-
             x_hv = F.dropout(x_v, p=self.opt['dropout_hv'], training=self.training)
+            x_hq = F.dropout(x_q, p=self.opt['dropout_hv'], training=self.training)
+
             x_hv = self.list_linear_hv[i](x_hv)
+            x_hq = self.list_linear_hv[i](x_hq)
+            
             if 'activation_hv' in self.opt:
                 x_hv = getattr(F, self.opt['activation_hv'])(x_hv)
+                x_hq = getattr(F, self.opt['activation_hv'])(x_hq)
 
-            x_hq = F.dropout(x_q, p=self.opt['dropout_hq'], training=self.training)
-            x_hq = self.list_linear_hq[i](x_hq)
-            if 'activation_hq' in self.opt:
-                x_hq = getattr(F, self.opt['activation_hq'])(x_hq)
+            # x_hq = F.dropout(x_q, p=self.opt['dropout_hq'], training=self.training)
+            # x_hq = self.list_linear_hq[i](x_hq)
+            # if 'activation_hq' in self.opt:
+            #     x_hq = getattr(F, self.opt['activation_hq'])(x_hq)
 
             x_mm.append(torch.mul(x_hq, x_hv))
         
