@@ -101,8 +101,8 @@ def main():
         with open(args.path_opt, 'r') as handle:
             options_yaml = yaml.load(handle)
         options = utils.update_values(options, options_yaml)
-    print('## args'); pprint(vars(args))
-    print('## options'); pprint(options)
+    # print('## args'); pprint(vars(args))
+    # print('## options'); pprint(options)
     if args.help_opt:
         return
 
@@ -122,10 +122,10 @@ def main():
                                         num_workers=args.workers,
                                         shuffle=True)                                      
 
-    if options['vqa']['trainsplit'] == 'train':
-        valset = datasets.factory_VQA('val', options['vqa'], options['coco'])
-        val_loader = valset.data_loader(batch_size=options['optim']['batch_size'],
-                                        num_workers=args.workers)
+    # if options['vqa']['trainsplit'] == 'train':
+        # valset = datasets.factory_VQA('val', options['vqa'], options['coco'])
+        # val_loader = valset.data_loader(batch_size=options['optim']['batch_size'],
+        #                                 num_workers=args.workers)
 
     if options['vqa']['trainsplit'] == 'trainval' or args.evaluate:
         testset = datasets.factory_VQA('test', options['vqa'], options['coco'])
@@ -151,23 +151,22 @@ def main():
     if args.resume:
         args.start_epoch, best_acc1, exp_logger = load_checkpoint(model.module, optimizer,
             os.path.join(options['logs']['dir_logs'], args.resume))
-    else:
-        # Or create logs directory
-        if os.path.isdir(options['logs']['dir_logs']):
-            if click.confirm('Logs directory already exists in {}. Erase?'
-                .format(options['logs']['dir_logs'], default=False)):
-                os.system('rm -r ' + options['logs']['dir_logs'])
-            else:
-                return
-        os.system('mkdir -p ' + options['logs']['dir_logs'])
-        path_new_opt = os.path.join(options['logs']['dir_logs'],
-                       os.path.basename(args.path_opt))
-        path_args = os.path.join(options['logs']['dir_logs'], 'args.yaml')
-        with open(path_new_opt, 'w') as f:
-            yaml.dump(options, f, default_flow_style=False)
-        with open(path_args, 'w') as f:
-            yaml.dump(vars(args), f, default_flow_style=False)
-        
+    # else:
+    #     # Or create logs directory
+    #     if os.path.isdir(options['logs']['dir_logs']):
+    #         if click.confirm('Logs directory already exists in {}. Erase?'
+    #             .format(options['logs']['dir_logs'], default=False)):
+    #             os.system('rm -r ' + options['logs']['dir_logs'])
+    #         else:
+    #             return
+    #     os.system('mkdir -p ' + options['logs']['dir_logs'])
+    #     path_new_opt = os.path.join(options['logs']['dir_logs'],
+    #                    os.path.basename(args.path_opt))
+    #     path_args = os.path.join(options['logs']['dir_logs'], 'args.yaml')
+    #     with open(path_new_opt, 'w') as f:
+    #         yaml.dump(options, f, default_flow_style=False)
+    #     with open(path_args, 'w') as f:
+    #         yaml.dump(vars(args), f, default_flow_style=False)        
     if exp_logger is None:
         # Set loggers
         exp_name = os.path.basename(options['logs']['dir_logs']) # add timestamp
@@ -183,30 +182,32 @@ def main():
     # args.evaluate: on valset OR/AND on testset
     #########################################################################################
 
-    if args.evaluate:
-        path_logger_json = os.path.join(options['logs']['dir_logs'], 'logger.json')
+    # if args.evaluate:
+    #     path_logger_json = os.path.join(options['logs']['dir_logs'], 'logger.json')
 
-        if options['vqa']['trainsplit'] == 'train':
-            acc1, val_results = engine.validate(val_loader, model, criterion,
-                                                exp_logger, args.start_epoch, args.print_freq)
-            # save results and compute OpenEnd accuracy
-            exp_logger.to_json(path_logger_json)
-            save_results(val_results, args.start_epoch, valset.split_name(),
-                         options['logs']['dir_logs'], options['vqa']['dir'])
+    #     if options['vqa']['trainsplit'] == 'train':
+    #         acc1, val_results = engine.validate(val_loader, model, criterion,
+    #                                             exp_logger, args.start_epoch, args.print_freq)
+    #         # save results and compute OpenEnd accuracy
+    #         exp_logger.to_json(path_logger_json)
+    #         save_results(val_results, args.start_epoch, valset.split_name(),
+    #                      options['logs']['dir_logs'], options['vqa']['dir'])
         
-        test_results, testdev_results = engine.test(test_loader, model, exp_logger,
-                                                    args.start_epoch, args.print_freq)
-        # save results and DOES NOT compute OpenEnd accuracy
-        exp_logger.to_json(path_logger_json)
-        save_results(test_results, args.start_epoch, testset.split_name(),
-                     options['logs']['dir_logs'], options['vqa']['dir'])
-        save_results(testdev_results, args.start_epoch, testset.split_name(testdev=True),
-                     options['logs']['dir_logs'], options['vqa']['dir'])
-        return
+    #     test_results, testdev_results = engine.test(test_loader, model, exp_logger,
+    #                                                 args.start_epoch, args.print_freq)
+    #     # save results and DOES NOT compute OpenEnd accuracy
+    #     exp_logger.to_json(path_logger_json)
+    #     save_results(test_results, args.start_epoch, testset.split_name(),
+    #                  options['logs']['dir_logs'], options['vqa']['dir'])
+    #     save_results(testdev_results, args.start_epoch, testset.split_name(testdev=True),
+    #                  options['logs']['dir_logs'], options['vqa']['dir'])
+    #     return
 
     #########################################################################################
     # Begin training on train/val or trainval/test
     #########################################################################################
+
+    print("Started training")
 
     for epoch in range(args.start_epoch+1, options['optim']['epochs']):
         #adjust_learning_rate(optimizer, epoch)
@@ -215,51 +216,51 @@ def main():
         engine.train(train_loader, model, criterion, optimizer, 
                      exp_logger, epoch, args.print_freq)
         
-        if options['vqa']['trainsplit'] == 'train':
-            # evaluate on validation set
-            acc1, val_results = engine.validate(val_loader, model, criterion,
-                                                exp_logger, epoch, args.print_freq)
-            # remember best prec@1 and save checkpoint
-            is_best = acc1 > best_acc1
-            best_acc1 = max(acc1, best_acc1)
-            save_checkpoint({
-                    'epoch': epoch,
-                    'arch': options['model']['arch'],
-                    'best_acc1': best_acc1,
-                    'exp_logger': exp_logger
-                },
-                model.module.state_dict(),
-                optimizer.state_dict(),
-                options['logs']['dir_logs'],
-                args.save_model,
-                args.save_all_from,
-                is_best)
+        # if options['vqa']['trainsplit'] == 'train':
+        #     # evaluate on validation set
+        #     acc1, val_results = engine.validate(val_loader, model, criterion,
+        #                                         exp_logger, epoch, args.print_freq)
+        #     # remember best prec@1 and save checkpoint
+        #     is_best = acc1 > best_acc1
+        #     best_acc1 = max(acc1, best_acc1)
+        #     save_checkpoint({
+        #             'epoch': epoch,
+        #             'arch': options['model']['arch'],
+        #             'best_acc1': best_acc1,
+        #             'exp_logger': exp_logger
+        #         },
+        #         model.module.state_dict(),
+        #         optimizer.state_dict(),
+        #         options['logs']['dir_logs'],
+        #         args.save_model,
+        #         args.save_all_from,
+        #         is_best)
 
-            # save results and compute OpenEnd accuracy
-            save_results(val_results, epoch, valset.split_name(),
-                         options['logs']['dir_logs'], options['vqa']['dir'])
-        else:
-            test_results, testdev_results = engine.test(test_loader, model, exp_logger,
-                                                        epoch, args.print_freq)
+        #     # save results and compute OpenEnd accuracy
+        #     save_results(val_results, epoch, valset.split_name(),
+        #                  options['logs']['dir_logs'], options['vqa']['dir'])
+        # else:
+        #     test_results, testdev_results = engine.test(test_loader, model, exp_logger,
+        #                                                 epoch, args.print_freq)
 
-            # save checkpoint at every timestep
-            save_checkpoint({
-                    'epoch': epoch,
-                    'arch': options['model']['arch'],
-                    'best_acc1': best_acc1,
-                    'exp_logger': exp_logger
-                },
-                model.module.state_dict(),
-                optimizer.state_dict(),
-                options['logs']['dir_logs'],
-                args.save_model,
-                args.save_all_from)
+        #     # save checkpoint at every timestep
+        #     save_checkpoint({
+        #             'epoch': epoch,
+        #             'arch': options['model']['arch'],
+        #             'best_acc1': best_acc1,
+        #             'exp_logger': exp_logger
+        #         },
+        #         model.module.state_dict(),
+        #         optimizer.state_dict(),
+        #         options['logs']['dir_logs'],
+        #         args.save_model,
+        #         args.save_all_from)
 
-            # save results and DOES NOT compute OpenEnd accuracy
-            save_results(test_results, epoch, testset.split_name(),
-                         options['logs']['dir_logs'], options['vqa']['dir'])
-            save_results(testdev_results, epoch, testset.split_name(testdev=True),
-                         options['logs']['dir_logs'], options['vqa']['dir'])
+        #     # save results and DOES NOT compute OpenEnd accuracy
+        #     save_results(test_results, epoch, testset.split_name(),
+        #                  options['logs']['dir_logs'], options['vqa']['dir'])
+        #     save_results(testdev_results, epoch, testset.split_name(testdev=True),
+        #                  options['logs']['dir_logs'], options['vqa']['dir'])
     
 
 def make_meters():  

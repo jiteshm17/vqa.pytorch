@@ -2,6 +2,7 @@ import time
 import torch
 from torch.autograd import Variable
 import vqa.lib.utils as utils
+from torchsummary import summary
 
 def train(loader, model, criterion, optimizer, logger, epoch, print_freq=10):
     # switch to train mode
@@ -17,8 +18,14 @@ def train(loader, model, criterion, optimizer, logger, epoch, print_freq=10):
 
         input_visual   = Variable(sample['visual'])
         input_question = Variable(sample['question'])
+        
+        # print('Visual shape is',input_visual.shape)
+        # print('Question shape is',input_question.shape)
         target_answer  = Variable(sample['answer'].cuda(async=True))
-
+        # sample_question_float = sample["question"].float()
+        
+        # summary(model,[sample['visual'],sample_question_float])
+        
         # compute output
         output = model(input_visual, input_question)
         torch.cuda.synchronize()

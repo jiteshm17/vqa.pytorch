@@ -110,7 +110,7 @@ class MutanFusion(AbstractFusion):
                 x_hq = getattr(F, self.opt['activation_hq'])(x_hq)
 
             x_mm.append(torch.mul(x_hq, x_hv))
-
+        
         x_mm = torch.stack(x_mm, dim=1)
         x_mm = x_mm.sum(1).view(batch_size, self.opt['dim_mm'])
 

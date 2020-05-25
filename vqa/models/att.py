@@ -37,6 +37,11 @@ class AbstractAtt(nn.Module):
         raise NotImplementedError
 
     def _attention(self, input_v, x_q_vec):
+
+        # print('inside attention function')
+        # print('visual shape',input_v.shape)
+        # print('question shape',x_q_vec.shape)
+
         batch_size = input_v.size(0)
         width = input_v.size(2)
         height = input_v.size(3)
@@ -69,7 +74,13 @@ class AbstractAtt(nn.Module):
                          self.opt['attention']['dim_q'])
 
         # First multimodal fusion
+
+        # print('visual shape is',x_v.shape)
+        # print('query shape is',x_q.shape)
+
         x_att = self._fusion_att(x_v, x_q)
+
+        # print('fusion shape is',x_att.shape)
 
         if 'activation_mm' in self.opt['attention']:
             x_att = getattr(F, self.opt['attention']['activation_mm'])(x_att)
@@ -153,13 +164,24 @@ class AbstractAtt(nn.Module):
         return x
 
     def forward(self, input_v, input_q):
+        # print('In forward Att')
+        # print(input_v.shape,input_q.shape)
+
+        # print()
+        # print(input_v.dim())
+        # print(input_q.dim())
         if input_v.dim() != 4 and input_q.dim() != 2:
             raise ValueError
 
         x_q_vec = self.seq2vec(input_q)
+        # print(x_q_vec.shape)
         list_v_att = self._attention(input_v, x_q_vec)
+        # print(list_v_att.shape)
         x = self._fusion_glimpses(list_v_att, x_q_vec)
+        # print(x.shape)
         x = self._classif(x)
+        # print(x.shape)
+        # print('returning')
         return x
 
 
